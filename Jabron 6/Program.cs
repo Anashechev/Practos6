@@ -135,7 +135,6 @@ public class Program
 
             Console.WriteLine($"Прочитанная фигура: {figure.Name}, {figure.Width}x{figure.Height}");
 
-            // Работа с объектом figure
 
             Console.WriteLine("Нажмите F1 для сохранения файла или Escape для выхода.");
 
