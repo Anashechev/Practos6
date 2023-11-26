@@ -1,7 +1,6 @@
-﻿
 using System;
 using System.IO;
-using System.Text.Json;
+using Newtonsoft.Json;
 using System.Xml.Serialization;
 
 public class Figure
@@ -9,6 +8,10 @@ public class Figure
     public string Name { get; set; }
     public int Width { get; set; }
     public int Height { get; set; }
+
+    public Figure()
+    {
+    }
 
     public Figure(string name, int width, int height)
     {
@@ -18,144 +21,141 @@ public class Figure
     }
 }
 
-public class FileIO
+public class FileManager
 {
     private string filePath;
+    private string saveFilePath;
 
-    public FileIO(string filePath)
+    public FileManager(string filePath, string saveFilePath)
     {
         this.filePath = filePath;
+        this.saveFilePath = saveFilePath;
     }
 
-    public Figure LoadFigure()
+    private string GetFileExtension(string path)
     {
-        string extension = Path.GetExtension(filePath);
+        return Path.GetExtension(path).ToLower();
+    }
 
-        switch (extension)
+    public Figure LoadFile()
+    {
+        Figure figure = null;
+
+        string fileExtension = GetFileExtension(filePath);
+
+        switch (fileExtension)
         {
             case ".txt":
-                return LoadFromTxtFile();
-            case ".json":
-                return LoadFromJsonFile();
-            case ".xml":
-                return LoadFromXmlFile();
-            default:
-                throw new NotSupportedException("Неподдерживаемый формат файла.");
-        }
-    }
-
-    public void SaveFigure(Figure figure)
-    {
-        string extension = Path.GetExtension(filePath);
-
-        switch (extension)
-        {
-            case ".txt":
-                SaveToTxtFile(figure);
+                string[] lines = File.ReadAllLines(filePath);
+                if (lines.Length == 3)
+                {
+                    figure = new Figure(lines[0], int.Parse(lines[1]), int.Parse(lines[2]));
+                }
                 break;
             case ".json":
-                SaveToJsonFile(figure);
+                string json = File.ReadAllText(filePath);
+                figure = JsonConvert.DeserializeObject<Figure>(json);
                 break;
             case ".xml":
-                SaveToXmlFile(figure);
+                XmlSerializer serializer = new XmlSerializer(typeof(Figure));
+                using (StreamReader reader = new StreamReader(filePath))
+                {
+                    figure = (Figure)serializer.Deserialize(reader);
+                }
                 break;
             default:
-                throw new NotSupportedException("Неподдерживаемый формат файла.");
+                Console.WriteLine("Неподдерживаемый формат файла.");
+                break;
         }
+
+        return figure;
     }
 
-    private Figure LoadFromTxtFile()
+    public void SaveFile(Figure figure)
     {
-        string[] lines = File.ReadAllLines(filePath);
+        Console.WriteLine("Выберите формат сохранения файла:");
+        Console.WriteLine("1. txt");
+        Console.WriteLine("2. json");
+        Console.WriteLine("3. xml");
 
-        if (lines.Length != 3)
-            throw new InvalidDataException("Неподдерживаемый формат файла.");
+        ConsoleKeyInfo keyInfo = Console.ReadKey();
+        Console.WriteLine();
 
-        string name = lines[0];
-        int width = int.Parse(lines[1]);
-        int height = int.Parse(lines[2]);
-
-        return new Figure(name, width, height);
-    }
-
-    private Figure LoadFromJsonFile()
-    {
-        string json = File.ReadAllText(filePath);
-
-        return JsonSerializer.Deserialize<Figure>(json);
-    }
-
-    private Figure LoadFromXmlFile()
-    {
-        XmlSerializer serializer = new XmlSerializer(typeof(Figure));
-
-        using (FileStream stream = new FileStream(filePath, FileMode.Open))
+        switch (keyInfo.Key)
         {
-            return (Figure)serializer.Deserialize(stream);
+            case ConsoleKey.D1:
+                SaveAsTxt(figure);
+                break;
+            case ConsoleKey.D2:
+                SaveAsJson(figure);
+                break;
+            case ConsoleKey.D3:
+                SaveAsXml(figure);
+                break;
+            default:
+                Console.WriteLine("Неправильный выбор формата сохранения.");
+                break;
         }
     }
 
-    private void SaveToTxtFile(Figure figure)
+    private void SaveAsTxt(Figure figure)
     {
         string[] lines = { figure.Name, figure.Width.ToString(), figure.Height.ToString() };
-
-        File.WriteAllLines(filePath, lines);
+        File.WriteAllLines(saveFilePath, lines);
     }
 
-    private void SaveToJsonFile(Figure figure)
+    private void SaveAsJson(Figure figure)
     {
-        string json = JsonSerializer.Serialize(figure);
-
-        File.WriteAllText(filePath, json);
+        string json = JsonConvert.SerializeObject(figure);
+        File.WriteAllText(saveFilePath, json);
     }
 
-    private void SaveToXmlFile(Figure figure)
+    private void SaveAsXml(Figure figure)
     {
         XmlSerializer serializer = new XmlSerializer(typeof(Figure));
-
-        using (FileStream stream = new FileStream(filePath, FileMode.Create))
+        using (StreamWriter writer = new StreamWriter(saveFilePath))
         {
-            serializer.Serialize(stream, figure);
+            serializer.Serialize(writer, figure);
         }
     }
 }
 
-public class Program
+class Program
 {
-    static void Main()
+    static void Main(string[] args)
     {
         Console.WriteLine("Введите путь к файлу:");
         string filePath = Console.ReadLine();
 
-        FileIO fileIO = new FileIO(filePath);
+        Console.WriteLine("Введите путь для сохранения файла:");
+        string saveFilePath = Console.ReadLine();
 
-        try
+        FileManager fileManager = new FileManager(filePath, saveFilePath);
+        Figure figure = fileManager.LoadFile();
+
+        if (figure != null)
         {
-            Figure figure = fileIO.LoadFigure();
-
-            Console.WriteLine($"Прочитанная фигура: {figure.Name}, {figure.Width}x{figure.Height}");
-
-
-            Console.WriteLine("Нажмите F1 для сохранения файла или Escape для выхода.");
-
-            while (true)
-            {
-                ConsoleKeyInfo keyInfo = Console.ReadKey();
-
-                if (keyInfo.Key == ConsoleKey.F1)
-                {
-                    fileIO.SaveFigure(figure);
-                    Console.WriteLine("Файл сохранен.");
-                }
-                else if (keyInfo.Key == ConsoleKey.Escape)
-                {
-                    break;
-                }
-            }
+            Console.WriteLine($"Название: {figure.Name}");
+            Console.WriteLine($"Ширина: {figure.Width}");
+            Console.WriteLine($"Высота: {figure.Height}");
         }
-        catch (Exception ex)
+
+        Console.WriteLine("Нажмите F1 для сохранения файла или Escape для выхода.");
+
+        while (true)
         {
-            Console.WriteLine($"Ошибка: {ex.Message}");
+            ConsoleKeyInfo keyInfo = Console.ReadKey();
+
+            if (keyInfo.Key == ConsoleKey.F1)
+            {
+                fileManager.SaveFile(figure);
+                Console.WriteLine("Файл сохранен.");
+                break;
+            }
+            else if (keyInfo.Key == ConsoleKey.Escape)
+            {
+                break;
+            }
         }
     }
 }
